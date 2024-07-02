@@ -1,6 +1,6 @@
 package itmo.dev.cat_microservice.services.interfaces;
 
-import itmo.dev.cat_microservice.dto.CatDto;
+import itmo.dev.common.dto.CatDto;
 
 import java.util.List;
 

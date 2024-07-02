@@ -1,7 +1,7 @@
 package itmo.dev.cat_microservice.mapper;
 
 import itmo.dev.common.models.Cat;
-import itmo.dev.cat_microservice.dto.CatDto;
+import itmo.dev.common.dto.CatDto;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 

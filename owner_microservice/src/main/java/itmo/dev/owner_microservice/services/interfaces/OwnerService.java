@@ -1,6 +1,6 @@
 package itmo.dev.owner_microservice.services.interfaces;
 
-import itmo.dev.owner_microservice.dto.OwnerDto;
+import itmo.dev.common.dto.OwnerDto;
 
 import java.util.List;
 

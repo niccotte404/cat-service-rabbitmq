@@ -28,7 +28,7 @@ public class Cat {
     @ManyToOne
     @JoinColumn(name = "owner_id")
     private Owner owner;
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "cat_friend",
             joinColumns = @JoinColumn(name = "cat_id"),
             inverseJoinColumns = @JoinColumn(name = "friend_id"))

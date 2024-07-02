@@ -1,42 +1,69 @@
 package itmo.dev.cat_microservice.services.impl;
 
-import itmo.dev.common.models.Cat;
-import itmo.dev.common.models.Owner;
-import itmo.dev.cat_microservice.repositories.CatRepository;
-import itmo.dev.repositorylayer.repositories.OwnerRepository;
-import itmo.dev.cat_microservice.dto.CatDto;
 import itmo.dev.cat_microservice.exceptions.CatNotFoundException;
 import itmo.dev.cat_microservice.exceptions.OwnerNotFoundException;
 import itmo.dev.cat_microservice.mapper.CatMapper;
+import itmo.dev.cat_microservice.operations.*;
+import itmo.dev.cat_microservice.repositories.CatRepository;
 import itmo.dev.cat_microservice.services.interfaces.CatService;
+import itmo.dev.common.dto.CatDto;
+import itmo.dev.common.models.Cat;
+import itmo.dev.common.models.Owner;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CatServiceImpl implements CatService {
 
     private final CatRepository catRepository;
-    private final OwnerRepository ownerRepository;
     private final CatMapper catMapper;
+    private final String nameQueue;
+    private final String ownerModelToCatServiceQueue;
+    private final RabbitTemplate rabbitTemplate;
+    private final Map<String, Operation> actionMap;
 
     @Autowired
-    public CatServiceImpl(@Qualifier("catRepository") CatRepository catRepository,
-                          @Qualifier("ownerRepository") OwnerRepository ownerRepository,
-                          CatMapper catMapper) {
-
-        this.ownerRepository = ownerRepository;
+    public CatServiceImpl(CatRepository catRepository, CatMapper catMapper, RabbitTemplate rabbitTemplate) {
         this.catRepository = catRepository;
         this.catMapper = catMapper;
+        this.nameQueue = "catDtoQueue";
+        this.ownerModelToCatServiceQueue = "ownerModelToCatService";
+        this.rabbitTemplate = rabbitTemplate;
+        this.actionMap = new HashMap<>();
+    }
+
+    @RabbitListener(queues = "catDtoQueue")
+    public void handleMessage(Message message) {
+        String operation = message.getMessageProperties().getHeaders().get("operationType").toString();
+
+        actionMap.put("createCat", new CreateCatOperation(rabbitTemplate, this));
+        actionMap.put("getAllCats", new GetAllCatsOperation(rabbitTemplate, this));
+        actionMap.put("getCatById", new GetCatByIdOperation(rabbitTemplate, this));
+        actionMap.put("updateCat", new UpdateCatOperation(rabbitTemplate, this));
+        actionMap.put("deleteCat", new DeleteCatOperation(rabbitTemplate, this));
+
+        actionMap.get(operation).execute(message, nameQueue);
     }
 
     @Override
     public CatDto createCat(CatDto catDto, Integer ownerId) throws OwnerNotFoundException {
 
-        Owner owner = ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new OwnerNotFoundException("Owner could not be found"));
+        Owner owner;
+        rabbitTemplate.convertAndSend(ownerModelToCatServiceQueue, ownerId);
+        Message message = rabbitTemplate.receive(ownerModelToCatServiceQueue, 10000);
+        if (message != null) {
+            owner = (Owner) rabbitTemplate.getMessageConverter().fromMessage(message);
+        }
+        else {
+            throw  new OwnerNotFoundException("Owner could not be found");
+        }
         Cat cat = catMapper.catToModel(catDto);
         cat.setOwner(owner);
 
@@ -56,12 +83,20 @@ public class CatServiceImpl implements CatService {
     @Override
     public CatDto getCatById(Integer ownerId, Integer catId) throws OwnerNotFoundException, CatNotFoundException {
 
-        Owner tmpOwner = ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new OwnerNotFoundException("Owner could not be found"));
+        Owner owner;
+        rabbitTemplate.convertAndSend(ownerModelToCatServiceQueue, ownerId);
+        Message message = rabbitTemplate.receive(ownerModelToCatServiceQueue, 10000);
+        if (message != null) {
+            owner = (Owner) rabbitTemplate.getMessageConverter().fromMessage(message);
+        }
+        else {
+            throw  new OwnerNotFoundException("Owner could not be found");
+        }
+
         Cat tmpCat = catRepository.findById(catId)
                 .orElseThrow(() -> new CatNotFoundException("Cat could not be found"));
 
-        if (!tmpCat.getOwner().equals(tmpOwner)) {
+        if (!tmpCat.getOwner().equals(owner)) {
 
             throw new CatNotFoundException("This cat doesnt belong to the owner");
         }
@@ -82,12 +117,20 @@ public class CatServiceImpl implements CatService {
     @Override
     public CatDto updateCat(Integer ownerId, Integer catId, CatDto catDto) throws OwnerNotFoundException, CatNotFoundException {
 
-        Owner tmpOwner = ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new OwnerNotFoundException("Owner could not be found"));
+        Owner owner;
+        rabbitTemplate.convertAndSend(ownerModelToCatServiceQueue, ownerId);
+        Message message = rabbitTemplate.receive(ownerModelToCatServiceQueue, 10000);
+        if (message != null) {
+            owner = (Owner) rabbitTemplate.getMessageConverter().fromMessage(message);
+        }
+        else {
+            throw new OwnerNotFoundException("Owner could not be found");
+        }
+
         Cat tmpCat = catRepository.findById(catId)
                 .orElseThrow(() -> new CatNotFoundException("Cat could not be found"));
 
-        if (!tmpCat.getOwner().equals(tmpOwner)) {
+        if (!tmpCat.getOwner().equals(owner)) {
 
             throw new CatNotFoundException("This cat doesnt belong to the owner");
         }
@@ -120,12 +163,20 @@ public class CatServiceImpl implements CatService {
     @Override
     public void deleteCat(Integer ownerId, Integer catId) throws OwnerNotFoundException, CatNotFoundException {
 
-        Owner tmpOwner = ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new OwnerNotFoundException("Owner could not be found"));
+        Owner owner;
+        rabbitTemplate.convertAndSend(ownerModelToCatServiceQueue, ownerId);
+        Message message = rabbitTemplate.receive(ownerModelToCatServiceQueue, 10000);
+        if (message != null) {
+            owner = (Owner) rabbitTemplate.getMessageConverter().fromMessage(message);
+        }
+        else {
+            throw  new OwnerNotFoundException("Owner could not be found");
+        }
+
         Cat tmpCat = catRepository.findById(catId)
                 .orElseThrow(() -> new CatNotFoundException("Cat could not be found"));
 
-        if (!tmpCat.getOwner().equals(tmpOwner)) {
+        if (!tmpCat.getOwner().equals(owner)) {
 
             throw new CatNotFoundException("This cat doesnt belong to the owner");
         }

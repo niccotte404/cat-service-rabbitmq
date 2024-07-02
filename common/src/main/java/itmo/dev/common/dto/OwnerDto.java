@@ -1,4 +1,4 @@
-package itmo.dev.cat_microservice.dto;
+package itmo.dev.common.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

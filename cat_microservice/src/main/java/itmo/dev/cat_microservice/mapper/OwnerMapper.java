@@ -1,7 +1,7 @@
 package itmo.dev.cat_microservice.mapper;
 
 import itmo.dev.common.models.Owner;
-import itmo.dev.cat_microservice.dto.OwnerDto;
+import itmo.dev.common.dto.OwnerDto;
 import lombok.*;
 import org.springframework.stereotype.Component;
 
